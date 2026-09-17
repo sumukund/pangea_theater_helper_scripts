@@ -14,6 +14,15 @@
 #    --target-org my-salesforce-org
 
 
+## API references
+
+## Zeffy API
+# https://support.zeffy.com/get-started-with-the-zeffy-api-yourg#who-can-access-the-api
+
+## Salesforce REST API 
+# https://developer.salesforce.com/docs/platform/api-rest/guide/intro-rest.html
+
+
 
 import requests
 from simple_salesforce import Salesforce, SalesforceAuthenticationFailed

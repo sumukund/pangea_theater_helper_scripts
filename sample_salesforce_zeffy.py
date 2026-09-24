@@ -1,40 +1,11 @@
-# curl -X GET "https://zeffy.com" \
-#      -H "Authorization: Bearer YOUR_ZEFFY_API_KEY" \
-#      -H "Accept: application/json" \
-#      -o zeffy_donations.json
-
-# npm install -g @salesforce/cli
-# # This opens a browser window to securely log into Salesforce
-# sf org login web --alias my-salesforce-org --set-default
-
-# sf data upsert bulk \
-#    --sobject Contact \
-#    --external-id Email \
-#    --file upload.csv \
-#    --target-org my-salesforce-org
-
-
-## API references
-
-## Zeffy API
-# https://support.zeffy.com/get-started-with-the-zeffy-api-yourg#who-can-access-the-api
-
-## Salesforce REST API 
-# https://developer.salesforce.com/docs/platform/api-rest/guide/intro-rest.html
-
-
-
 import requests
 from simple_salesforce import Salesforce, SalesforceAuthenticationFailed
 
 # --- CONFIGURATION ---
-ZEFFY_API_KEY = "YOUR_ZEFFY_API_KEY"
-ZEFFY_URL = "https://zeffy.com"
-
 SF_USERNAME = "your_salesforce_username@domain.com"
 SF_PASSWORD = "your_salesforce_password"
 SF_SECURITY_TOKEN = "your_salesforce_security_token"
-SF_DOMAIN = "login"  # Change to 'test' if using a Salesforce Sandbox org
+SF_DOMAIN = "login"
 
 # --- 1. CONNECT TO SALESFORCE ---
 print("Connecting to Salesforce...")
@@ -50,60 +21,62 @@ except SalesforceAuthenticationFailed as e:
     print(f"Salesforce login failed: {e}")
     exit(1)
 
-# --- 2. FETCH DONATIONS FROM ZEFFY ---
-print("Fetching donation list from Zeffy...")
-headers = {
-    "Authorization": f"Bearer {ZEFFY_API_KEY}",
-    "Accept": "application/json"
+# --- 2. SIMULATE OR LOAD ZEFFY WEBHOOK PAYLOAD ---
+# If you are reading from a saved json file:
+# import json
+# with open("zeffy_webhook.json") as f:
+#     payload = json.load(f)
+
+# Using your exact sample payload directly for demonstration:
+payload = {
+  "id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+  "type": "payment.completed",
+  "data": {
+    "amount": 5000,
+    "currency": "cad",
+    "description": "Annual Gala 2025",
+    "buyer": {
+      "email": "jane@example.com",
+      "first_name": "Jane",
+      "last_name": "Doe"
+    }
+  }
 }
 
-response = requests.get(ZEFFY_URL, headers=headers)
-
-if response.status_code != 200:
-    print(f"Failed to fetch from Zeffy: {response.status_code} - {response.text}")
-    exit(1)
-
-data = response.json()
-# Zeffy lists data inside a 'data' array or directly as a list depending on cursor setup
-payments = data.get("data", data) 
-
-print(f"Found {len(payments)} records to process.")
-
-# --- 3. PASS DIRECTLY TO SALESFORCE ---
-for payment in payments:
-    # Safely extract donor information from the Zeffy payload
-    # Note: Adjust field keys based on Zeffy's exact JSON nested structure (e.g., payment['buyer'])
+# --- 3. PARSE AND PUSH TO SALESFORCE ---
+if payload.get("type") == "payment.completed":
+    payment = payload.get("data", {})
     buyer = payment.get("buyer", {})
-    email = buyer.get("email")
-    first_name = buyer.get("firstName", "")
-    last_name = buyer.get("lastName", "Supporter") # Salesforce requires a LastName
-    amount = payment.get("amount", 0) / 100.0 # Convert cents to dollars if applicable
     
+    email = buyer.get("email")
+    first_name = buyer.get("first_name", "")
+    last_name = buyer.get("last_name", "Supporter")  # Salesforce requires a LastName
+    amount = payment.get("amount", 0) / 100.0        # Convert cents (5000) to dollars ($50.00)
+    description = payment.get("description", "Zeffy Donation")
+
     if not email:
         print("Skipping record: No email address found.")
-        continue
+        exit(0)
 
-    print(f"Processing: {first_name} {last_name} ({email}) - ${amount}")
+    print(f"Processing: {first_name} {last_name} ({email}) - ${amount} for '{description}'")
 
-    # Upsert Contact in Salesforce based on Email to prevent duplicates
     try:
-        sf.Contact.upsert(
-            'Email', # External ID field in Salesforce used to match duplicates
+        # Upsert Contact based on Email to prevent duplicates
+        contact_result = sf.Contact.upsert(
+            'Email', 
             email, 
             {
                 'FirstName': first_name,
-                'LastName': last_name,
-                # If you have a custom currency field on the Contact layout for lifetime giving:
-                # 'Total_Donations__c': amount 
+                'LastName': last_name
             }
         )
-        print(f"Successfully synced {email} to Salesforce.")
+        print(f"Successfully synced contact {email} to Salesforce.")
         
-        # OPTIONAL: If you want to log individual donations as Opportunities linked to the Contact,
-        # you would query the Contact ID and insert an Opportunity record here.
+        # Optional: Fetch the Contact ID to create a linked Donation/Opportunity record
+        # (Useful if you want to track the $50 amount tied to "Annual Gala 2025")
+        contact_record = sf.Contact.get_by_id(contact_result.get('id')) if contact_result else None
         
     except Exception as e:
         print(f"Error syncing {email} to Salesforce: {e}")
 
 print("Sync execution completed.")
-

@@ -130,15 +130,22 @@ for payment in all_payments:
             print(f"  -> Contact is already a member of Campaign {SF_CAMPAIGN_ID}")
 
         # 3. (Optional) Create an Opportunity / Donation tied to the Campaign and Contact
-        sf.Opportunity.create({
-              'Name': f"{first_name} {last_name} - {description}",
-              'StageName': 'Closed Won',
-              'CloseDate': '2026-09-24',
-              'Amount': amount,
-              'CampaignId': SF_CAMPAIGN_ID,  # Ties revenue directly to the Campaign
-              'ContactId': contact_id       # Primary Contact
-})
+        opp_name = f"{first_name} {last_name} - {description}"
+        opp_query = f"SELECT Id FROM Opportunity WHERE ContactId = '{contact_id}' AND Amount = {amount} AND Name = '{opp_name}' LIMIT 1"
+        opp_search = sf.query(opp_query)
 
+        if opp_search['totalSize'] > 0:
+            self.log(f"  -> Opportunity already exists. Skipping creation.")
+        else:
+            sf.Opportunity.create({
+                'Name': opp_name,
+                'StageName': 'Closed Won',
+                'CloseDate': '2026-09-24',
+                'Amount': amount,
+                'CampaignId': target_campaign_id,
+                'ContactId': contact_id
+            })
+            self.log(f"  -> Opportunity created successfully (${amount})\n")
     except Exception as e:
         print(f"  -> Error syncing {email}: {e}")
 

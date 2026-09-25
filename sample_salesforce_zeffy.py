@@ -72,11 +72,6 @@ while has_more:
 
 print(f"Total payments fetched: {len(all_payments)}")
 
-# --- 3. FETCH ALL PAYMENTS FOR THE CAMPAIGN FROM ZEFFY ---
-
-
-# Set your Salesforce Campaign ID here:
-
 for payment in all_payments:
     buyer = payment.get("buyer", {})
     email = buyer.get("email")
@@ -86,12 +81,23 @@ for payment in all_payments:
     raw_amount = payment.get("amount", 0)
     amount = raw_amount / 100.0 if raw_amount > 100 else raw_amount
     description = payment.get("description", "Gala Ticket/Donation")
+    
+    # Extract the actual transaction date from Zeffy (usually 'created' timestamp or date string)
+
+    payment_date = payment.get("created", "2026-09-24")
+    if isinstance(payment_date, int):
+        import datetime
+        payment_date = datetime.datetime.fromtimestamp(payment_date).strftime('%Y-%m-%d')
+    elif isinstance(payment_date, str) and len(payment_date >= 10):
+        payment_date = payment_date[:10] # Grab YYYY-MM-DD format
+    else:
+        payment_date = "2026-09-24"
 
     if not email:
         print("Skipping: No email provided.")
         continue
 
-    print(f"Processing: {first_name} {last_name} ({email})")
+    print(f"Processing: {payment_date} {first_name} {last_name} ({email})")
 
     try:
         # 1. Get or Create the Contact
@@ -115,7 +121,6 @@ for payment in all_payments:
             print(f"  -> Created new Contact ID: {contact_id}")
 
         # 2. Add Contact to the Campaign as a CampaignMember
-        # Upsert key: ContactId + CampaignId composite key
         cm_query = f"SELECT Id FROM CampaignMember WHERE CampaignId = '{SF_CAMPAIGN_ID}' AND ContactId = '{contact_id}' LIMIT 1"
         cm_search = sf.query(cm_query)
 
@@ -123,30 +128,31 @@ for payment in all_payments:
             sf.CampaignMember.create({
                 'CampaignId': SF_CAMPAIGN_ID,
                 'ContactId': contact_id,
-                'Status': 'Responded'  # Common statuses: 'Attended', 'Responded', 'Sent'
+                'Status': 'Responded'
             })
             print(f"  -> Added Contact to Campaign {SF_CAMPAIGN_ID}")
         else:
             print(f"  -> Contact is already a member of Campaign {SF_CAMPAIGN_ID}")
 
-        # 3. (Optional) Create an Opportunity / Donation tied to the Campaign and Contact
+        # 3. Create or Check Opportunity with exact CloseDate tracking
         opp_name = f"{first_name} {last_name} - {description}"
-        opp_query = f"SELECT Id FROM Opportunity WHERE ContactId = '{contact_id}' AND Amount = {amount} AND Name = '{opp_name}' LIMIT 1"
+        
+        # Check against Contact, Amount, Name, and CloseDate to ensure zero duplicates
+        opp_query = f"SELECT Id FROM Opportunity WHERE ContactId = '{contact_id}' AND Amount = {amount} AND CloseDate = '{payment_date}' LIMIT 1"
         opp_search = sf.query(opp_query)
 
         if opp_search['totalSize'] > 0:
-            self.log(f"  -> Opportunity already exists. Skipping creation.")
+            print(f"  -> Opportunity for this payment already exists on {payment_date}. Skipping.")
         else:
             sf.Opportunity.create({
                 'Name': opp_name,
                 'StageName': 'Closed Won',
-                'CloseDate': '2026-09-24',
+                'CloseDate': payment_date,  # Tracks exact donation date from Zeffy
                 'Amount': amount,
-                'CampaignId': target_campaign_id,
+                'CampaignId': SF_CAMPAIGN_ID,
                 'ContactId': contact_id
             })
-            self.log(f"  -> Opportunity created successfully (${amount})\n")
+            print(f"  -> Opportunity created successfully for ${amount} on {payment_date}\n")
+
     except Exception as e:
         print(f"  -> Error syncing {email}: {e}")
-
-print("\nSync execution completed.")

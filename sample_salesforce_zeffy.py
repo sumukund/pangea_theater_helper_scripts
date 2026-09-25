@@ -13,7 +13,7 @@ SF_CAMPAIGN_ID = ""
 
 # --- CONFIGURATION ---
 
-
+# Where to find it: Log into Marketing Cloud, open Campaigns, click on your specific campaign, and check the URL or the Campaign ID property block.
 TARGET_CAMPAIGN_ID = ""  # Your Gala Campaign ID
 
 # --- 1. CONNECT TO SALESFORCE ---

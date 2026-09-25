@@ -5,7 +5,7 @@ from simple_salesforce import Salesforce, SalesforceAuthenticationFailed
 ZEFFY_API_KEY = ""
 ZEFFY_URL = "https://zeffy.com"
 
-SF_USERNAME = ""
+SF_USERNAME = "seamus@pangeaworldtheater.org"
 SF_PASSWORD = ""
 SF_SECURITY_TOKEN = ""
 SF_DOMAIN = "login"

@@ -5,16 +5,17 @@ from simple_salesforce import Salesforce, SalesforceAuthenticationFailed
 ZEFFY_API_KEY = ""
 ZEFFY_URL = "https://zeffy.com"
 
-SF_USERNAME = "seamus@pangeaworldtheater.org"
+SF_USERNAME = ""
 SF_PASSWORD = ""
 SF_SECURITY_TOKEN = ""
 SF_DOMAIN = "login"
-SF_CAMPAIGN_ID = ""
 
-# --- CONFIGURATION ---
+
+# --- User supplied CONFIG ---
 
 # Where to find it: Log into Salesforce, Premiere Success Package, open Campaigns, click on your specific campaign, and check the URL or the Campaign ID property block.
-TARGET_CAMPAIGN_ID = ""  # Your Gala Campaign ID
+SF_CAMPAIGN_ID = ""
+ZEFFY_CAMPAIGN_ID = ""  # Your Gala Campaign ID
 
 # --- 1. CONNECT TO SALESFORCE ---
 print("Connecting to Salesforce...")
@@ -39,11 +40,11 @@ all_payments = []
 has_more = True
 next_cursor = None
 
-print(f"Fetching payments for Campaign: {TARGET_CAMPAIGN_ID}...")
+print(f"Fetching payments for Campaign: {ZEFFY_CAMPAIGN_ID}...")
 
 while has_more:
     params = {
-        "campaign": TARGET_CAMPAIGN_ID,
+        "campaign": ZEFFY_CAMPAIGN_ID,
         "status": "succeeded"  # Filter to succeeded payments
     }
     
@@ -81,9 +82,6 @@ for payment in all_payments:
     raw_amount = payment.get("amount", 0)
     amount = raw_amount / 100.0 if raw_amount > 100 else raw_amount
     description = payment.get("description", "Gala Ticket/Donation")
-    
-    # Extract the actual transaction date from Zeffy (usually 'created' timestamp or date string)
-
     payment_date = payment.get("created", "2026-09-24")
     if isinstance(payment_date, int):
         import datetime
